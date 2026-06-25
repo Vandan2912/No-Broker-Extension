@@ -5,8 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## What this is
 
 A single-page image/video viewer for NoBroker property listings. No build step, no
-dependencies, no package.json — just `index.html` + `app.js` + `data.js` + `style.css`
-served by a small Python HTTP server.
+dependencies, no package.json — just static HTML/CSS/JS files served by a small Python
+HTTP server.
 
 ## Running it
 
@@ -27,11 +27,32 @@ that serves the static files as-is, plus one extra route:
   same-origin endpoint instead of calling NoBroker directly. The property id is validated
   with a strict regex before being interpolated into the upstream URL.
 
-**`app.js`** — all client logic, no framework. The core idea: the user pastes either a
-NoBroker property URL (fetched via the proxy above) or a raw JSON blob (a "photos" array,
-or a full API response containing one buried somewhere in it). Several `find*` functions
-walk the parsed JSON recursively to locate what's needed regardless of where it lives in
-the payload shape:
+**`viewer.js`** — shared rendering code with no dependency on the input-panel/fetch flow,
+exposed as `window.Viewer`. Owns the image grid, the lightbox (open/close/next/prev/resize/
+rotate), the video section, and the map link. Per-image rotation state is tracked in a
+`rotations[]` array parallel to `images[]`, applied via CSS `transform: rotate()` to both
+the grid tile and the lightbox image for that index. Both `index.html` (live viewer) and
+`bookmarks.html` (saved-property detail view) load this file and call into it
+(`Viewer.setImageData`, `Viewer.renderVideos`, `Viewer.updateMapLink`,
+`Viewer.initLightboxControls`) — keeping one implementation of the grid/lightbox instead
+of duplicating it per page. Both pages must therefore provide the same element ids
+(`#grid`, `#videoSection`, `#lightbox` and its children, `#count`, `#mapLink`) in their
+markup, even if some are visually different (e.g. bookmarks list page hides them).
+
+**`bookmarks.js`** — localStorage-backed CRUD for saved properties, exposed as
+`window.Bookmarks` (`loadBookmarks`/`saveBookmarks`/`upsertBookmark`/`removeBookmark`/
+`getBookmark`). Single key `nb-bookmarks` holds a JSON array; entries are keyed by `id`
+(the property's 32-hex-char id when known, else the derived image hash) so saving the same
+property twice updates in place rather than duplicating. Each entry stores the full
+`photos`/`videoObjects` arrays (not just a thumbnail) so the bookmark detail view can
+render the complete grid/lightbox purely from localStorage, with no network call.
+
+**`app.js`** — landing-search + fetch logic for the live viewer (`index.html`), no
+framework. The user pastes a NoBroker property URL; `extractPropertyId` (a `[0-9a-f]{32}`
+regex) pulls the property id out of it, the page calls the proxy above, and the JSON
+response is fed through `loadFromParsedJson`. Several `find*` functions walk the parsed
+JSON recursively to locate what's needed regardless of where it lives in the payload
+shape (NoBroker's API response shape isn't trusted to be stable across endpoints/listings):
 
 - `findPhotosArray` — locates the array of photo objects (each has an `imagesMap` with
   `original`/`large`/`medium`/`thumbnail` filenames).
@@ -44,19 +65,39 @@ the payload shape:
   units (`{ original, low, high, thumbnail }` paths under `videos/...`).
 - `findLatLong` — recursively finds lat/lng fields (several possible key spellings, plus
   a combined `"lat,lng"` string fallback) to populate the "View on Map" link.
+- `findPropertyInfo` — best-effort scrape of title/locality/city/address/price/deposit/
+  BHK/bathrooms/area/furnishing/property type/owner-or-agent name+phone, trying several
+  known key spellings per field since NoBroker's response shape varies by endpoint.
+  Missing fields are simply omitted from the rendered property-info panel.
 
-Image URLs are built by concatenating a detected/derived `baseUrl` (the folder of one
-known full image URL) with each photo's filename for the selected size. Per-image
-rotation state is tracked in a `rotations[]` array parallel to `images[]`, applied via
-CSS `transform: rotate()` to both the grid tile and the lightbox image for that index.
+After a successful load, `app.js` keeps the derived state (`currentPropertyId`,
+`currentAssetDomain`, `currentInfo`, `currentPhotos`, `currentVideoObjects`,
+`currentSampleUrl`, `currentCoords`) in module scope so the "Save Property" button can
+build a bookmark entry from whatever's currently displayed, via `Bookmarks.upsertBookmark`.
 
-**`data.js`** — defines `window.IMAGE_DATA`, a sample photos array used as the default
-content on page load (and pre-filled into the JSON textarea) before the user loads their
-own data.
+**`index.html`** — two view states on one page, toggled by the `hidden` attribute on
+`#landing` vs `#viewerContent` (`showLanding`/`showViewer` in `app.js`): a centered,
+Google-style search box (`#propertyUrlInput` + `#fetchUrlBtn`, link-only — no JSON paste,
+no default sample data) is the initial/landing state; after a successful proxy fetch it
+switches to the viewer state (Save Property button, property-info panel, video grid, image
+grid, lightbox). Clicking the header brand (`#brandHome`) resets the header and returns to
+the landing state. Loads `viewer.js`, `bookmarks.js`, then `app.js`. `data.js` (a sample
+photos array) is no longer referenced by `index.html` — it's unused dead weight now, left
+in the repo only because nothing currently requires deleting it.
 
-**`index.html`** — single page: a collapsible input panel (property URL fetch, or paste
-JSON + optional manual sample-URL override), a video grid, an image grid, and a lightbox
-overlay with size selector (thumbnail/medium/large/original) and rotation controls.
+**Note on `#landing`/`#viewerContent`'s CSS:** both use `display: flex`/`block` as their
+base rule, so each needs an explicit `#id[hidden] { display: none; }` override — the
+`[hidden]` attribute alone loses to an id selector with an explicit `display` value at
+equal specificity once both rules are in the same stylesheet.
+
+**`bookmarks.html`** + **`bookmarks-page.js`** — the saved-properties page. A single page
+with two view states switched by a `?id=` query param (no router): with no `id`, renders
+the bookmark list (cards with thumbnail/title/locality/price, a delete button per card,
+and a "View All on Map" button that's only shown when ≥1 bookmark has coordinates — it
+opens a Google Maps directions URL chaining every bookmark's lat/lng as a waypoint, since
+that's the only no-API-key way to plot multiple distinct points on one Maps link); with an
+`id`, looks up that bookmark and renders it through the same `viewer.js` grid/lightbox used
+by `index.html`, entirely from localStorage data.
 
 ## Working in this codebase
 

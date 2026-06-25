@@ -3,52 +3,38 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Image Viewer</title>
+  <title>My Bookmarks — Image Viewer</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header>
-    <div class="brand" id="brandHome" role="button" tabindex="0">
-      <span class="brand-icon">🖼️</span>
-      <h1>Image Viewer</h1>
+    <div class="brand">
+      <span class="brand-icon">&#128278;</span>
+      <h1>My Bookmarks</h1>
     </div>
     <div class="header-right">
-      <a href="bookmarks.html">&#128278; My Bookmarks</a>
+      <a href="index.html">&#8592; Back to Viewer</a>
       <a id="mapLink" href="#" target="_blank" rel="noopener" hidden>&#128205; View on Map</a>
       <span id="count"></span>
     </div>
   </header>
 
-  <div id="landing">
-    <div class="landing-box">
-      <span class="landing-icon">🖼️</span>
-      <h2>Search a NoBroker property</h2>
-      <div class="landing-search">
-        <input id="propertyUrlInput" type="text" placeholder="Paste a NoBroker property link…" />
-        <button id="fetchUrlBtn">Search</button>
-      </div>
-      <div id="loadError" class="landing-error"></div>
+  <div id="listView">
+    <div class="panel-actions bookmarks-toolbar">
+      <button id="mapAllBtn" hidden>&#128205; View All on Map</button>
     </div>
+    <div id="emptyState" class="empty-state" hidden>No saved properties yet. Go save one from the viewer.</div>
+    <div id="bookmarksGrid" class="grid" hidden></div>
   </div>
 
-  <div id="viewerContent" hidden>
-    <div class="viewer-search-bar">
-      <input id="newSearchInput" type="text" placeholder="Paste a NoBroker property link to search another…" />
-      <button id="newSearchBtn">Search</button>
-    </div>
-    <div id="newSearchError" class="landing-error"></div>
-
-    <div class="panel-actions viewer-toolbar">
-      <button id="saveBtn">&#128278; Save Property</button>
-      <span id="saveStatus"></span>
-    </div>
-
+  <div id="detailView" hidden>
+    <a href="bookmarks.html" class="back-link">&#8592; Back to bookmarks</a>
     <div id="propertyInfo" class="property-info" hidden></div>
-
     <div id="videoSection" hidden></div>
-
     <div id="grid"></div>
   </div>
+
+  <div id="detailNotFound" class="empty-state" hidden>Bookmark not found. It may have been removed.</div>
 
   <div id="lightbox">
     <div class="lightbox-top">
@@ -70,6 +56,6 @@
 
   <script src="viewer.js"></script>
   <script src="bookmarks.js"></script>
-  <script src="app.js"></script>
+  <script src="bookmarks-page.js"></script>
 </body>
 </html>

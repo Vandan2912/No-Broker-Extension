@@ -87,76 +87,159 @@ header h1 {
   border-color: var(--accent);
 }
 
-#inputPanel {
-  margin: 16px 28px 0;
+.header-right a {
+  color: var(--text);
+  font-size: 13px;
+  background: var(--panel-2);
+  padding: 4px 10px;
+  border-radius: 999px;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--panel);
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 
-#inputPanel summary {
-  padding: 12px 16px;
+.header-right a:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.brand {
   cursor: pointer;
-  font-size: 13.5px;
-  font-weight: 500;
-  color: var(--text);
-  list-style: none;
+}
+
+#landing {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  min-height: calc(100vh - 70px);
+  padding: 24px;
 }
 
-#inputPanel summary::-webkit-details-marker {
+#landing[hidden] {
   display: none;
 }
 
-#inputPanel summary::before {
-  content: "▸";
-  color: var(--accent);
-  transition: transform 0.15s ease;
-}
-
-#inputPanel[open] summary::before {
-  transform: rotate(90deg);
-}
-
-.summary-hint {
-  color: var(--text-dim);
-  font-weight: 400;
-}
-
-.panel-body {
+.landing-box {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 4px 16px 16px;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  max-width: 600px;
+  text-align: center;
 }
 
-#inputPanel label {
+.landing-icon {
+  font-size: 48px;
+}
+
+.landing-box h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.landing-search {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 12.5px;
-  color: var(--text-dim);
+  width: 100%;
+  gap: 10px;
 }
 
-#inputPanel input,
-#inputPanel textarea {
+.landing-search input {
+  flex: 1;
   background: var(--panel-2);
   color: var(--text);
   border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 9px 10px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12.5px;
-  resize: vertical;
+  border-radius: 999px;
+  padding: 14px 20px;
+  font-size: 14px;
   transition: border-color 0.15s ease;
 }
 
-#inputPanel input:focus,
-#inputPanel textarea:focus {
+.landing-search input:focus {
   outline: none;
   border-color: var(--accent);
+}
+
+.landing-search button {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 999px;
+  padding: 0 26px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 0.15s ease;
+}
+
+.landing-search button:hover {
+  background: var(--accent-hover);
+}
+
+.landing-search button:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.landing-error {
+  color: var(--danger);
+  font-size: 13px;
+  min-height: 18px;
+}
+
+.viewer-search-bar {
+  display: flex;
+  gap: 10px;
+  padding: 16px 28px 0;
+}
+
+.viewer-search-bar input {
+  flex: 1;
+  max-width: 520px;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-size: 13.5px;
+  transition: border-color 0.15s ease;
+}
+
+.viewer-search-bar input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.viewer-search-bar button {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 999px;
+  padding: 0 20px;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 500;
+  transition: background 0.15s ease;
+}
+
+.viewer-search-bar button:hover {
+  background: var(--accent-hover);
+}
+
+.viewer-search-bar button:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+#newSearchError {
+  padding: 6px 28px 0;
+  min-height: 0;
+}
+
+.viewer-toolbar {
+  padding: 16px 28px 0;
 }
 
 .panel-actions {
@@ -165,29 +248,81 @@ header h1 {
   gap: 12px;
 }
 
-#inputPanel button {
-  background: var(--accent);
-  color: white;
-  border: none;
-  border-radius: 6px;
+#loadError {
+  color: var(--danger);
+  font-size: 13px;
+}
+
+#saveStatus {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+#saveBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 999px;
   padding: 9px 18px;
   cursor: pointer;
   font-size: 13.5px;
   font-weight: 500;
-  transition: background 0.15s ease, transform 0.1s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
 
-#inputPanel button:hover {
-  background: var(--accent-hover);
+#saveBtn:hover {
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
-#inputPanel button:active {
+#saveBtn:active {
   transform: scale(0.97);
 }
 
-#loadError {
-  color: var(--danger);
-  font-size: 13px;
+#saveBtn.saved {
+  background: linear-gradient(90deg, #2f9e44, #51cf66);
+  border-color: transparent;
+  color: white;
+}
+
+.property-info {
+  margin: 16px 28px 0;
+  padding: 16px 18px;
+  border-radius: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+}
+
+.property-title {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.property-location,
+.property-contact {
+  color: var(--text-dim);
+  font-size: 13.5px;
+  margin-bottom: 6px;
+}
+
+.property-specs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.property-specs span {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12.5px;
+  color: var(--text);
 }
 
 #videoSection {
@@ -285,6 +420,89 @@ header h1 {
 .tile-rotate-btn:hover {
   background: var(--accent);
   transform: rotate(45deg);
+}
+
+.bookmarks-toolbar {
+  padding: 16px 28px 0;
+}
+
+.bookmarks-toolbar button {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 9px 18px;
+  cursor: pointer;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.bookmarks-toolbar button:hover {
+  background: var(--accent-hover);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+  padding: 16px 28px 40px;
+}
+
+.empty-state {
+  margin: 40px 28px;
+  color: var(--text-dim);
+  font-size: 14px;
+  text-align: center;
+}
+
+.back-link {
+  display: inline-block;
+  margin: 16px 28px 0;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  text-decoration: none;
+}
+
+.back-link:hover {
+  color: var(--text);
+}
+
+.bookmark-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.bookmark-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10px 12px;
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.85));
+  color: white;
+}
+
+.bookmark-title {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.bookmark-subtitle {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.bookmark-price {
+  font-size: 12.5px;
+  margin-top: 2px;
+  color: #9bffb0;
+}
+
+.bookmark-delete-btn {
+  opacity: 1;
+  background: rgba(13, 15, 18, 0.75);
 }
 
 #lightbox {

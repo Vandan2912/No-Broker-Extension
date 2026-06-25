@@ -1,6 +1,3 @@
-const DEFAULT_SAMPLE_URL =
-  "https://images.nobroker.in/images/8a9f87836f833bfd016f839395360a8c/8a9f87836f833bfd016f839395360a8c_65182_699014_large.jpg";
-
 // Matches a CDN image URL like https://assets.nobroker.in/images/<hash>/<file>.jpg
 const IMAGE_URL_RE = /^(?:https?:)?\/\/[^/\s"]+\/images\/[^/\s"]+\/[^/\s"?#]+\.(?:jpg|jpeg|png|webp)(?:\?[^\s"]*)?$/i;
 
@@ -122,189 +119,121 @@ function findVideoObjects(node, seen = new Set()) {
   return null;
 }
 
-// path may already be a full/protocol-relative URL, or a bare "videos/..." path.
-function resolveVideoUrl(path, domain) {
-  if (/^(?:https?:)?\/\//.test(path)) return path.startsWith("//") ? `https:${path}` : path;
-  return `https://${domain}/${path.replace(/^\/+/, "")}`;
+// Best-effort scrape of human-useful property details (title, location, price,
+// specs, owner/agent contact) from anywhere in the pasted JSON. Field names
+// vary by NoBroker endpoint, so each field tries several known key spellings.
+// Missing fields are simply omitted — this never throws or blocks rendering.
+const PROPERTY_INFO_KEYS = {
+  title: ["title", "propertyTitle"],
+  locality: ["locality", "localityName", "society", "societyName"],
+  city: ["city", "cityName"],
+  address: ["address", "fullAddress"],
+  price: ["price", "rentAmount", "expectedRent", "monthlyRent", "sellPrice"],
+  deposit: ["deposit", "securityDeposit"],
+  bhk: ["bedroomNum", "bhk"],
+  bathrooms: ["bathroomNum", "bathroom"],
+  area: ["buildupArea", "area", "superBuiltupArea"],
+  furnishing: ["furnishing", "furnishingDesc"],
+  propertyType: ["propertyType", "type"],
+};
+const CONTACT_NAME_KEYS = ["ownerName", "agentName", "name"];
+const CONTACT_PHONE_KEYS = ["mobile", "phone", "contactNumber", "phoneNumber"];
+const CONTACT_CONTAINER_KEYS = ["owner", "lessor", "agent", "contact", "primaryAgent"];
+
+function firstNonEmpty(node, keys) {
+  for (const key of keys) {
+    const value = node[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+  }
+  return null;
 }
 
-function renderVideos(videoObjects, domain) {
-  const section = document.getElementById("videoSection");
-  section.innerHTML = "";
+function findPropertyInfo(node, info = {}, seen = new Set()) {
+  if (!node || typeof node !== "object" || seen.has(node)) return info;
+  seen.add(node);
 
-  if (!videoObjects || !videoObjects.length) {
-    section.hidden = true;
+  if (!Array.isArray(node)) {
+    for (const [field, keys] of Object.entries(PROPERTY_INFO_KEYS)) {
+      if (info[field] == null) {
+        const value = firstNonEmpty(node, keys);
+        if (value != null && !(field === "title" && value === "multipart")) info[field] = value;
+      }
+    }
+    if (!info.contactName || !info.contactPhone) {
+      for (const containerKey of CONTACT_CONTAINER_KEYS) {
+        const container = node[containerKey];
+        if (container && typeof container === "object" && !Array.isArray(container)) {
+          if (!info.contactName) {
+            const name = firstNonEmpty(container, CONTACT_NAME_KEYS);
+            if (name) info.contactName = name;
+          }
+          if (!info.contactPhone) {
+            const phone = firstNonEmpty(container, CONTACT_PHONE_KEYS);
+            if (phone) info.contactPhone = phone;
+          }
+        }
+      }
+    }
+  }
+
+  const values = Array.isArray(node) ? node : Object.values(node);
+  for (const value of values) {
+    findPropertyInfo(value, info, seen);
+  }
+  return info;
+}
+
+function hasPropertyInfo(info) {
+  return info && Object.keys(info).length > 0;
+}
+
+function renderPropertyInfo(info) {
+  const panel = document.getElementById("propertyInfo");
+  if (!hasPropertyInfo(info)) {
+    panel.hidden = true;
+    panel.innerHTML = "";
     return;
   }
 
-  section.hidden = false;
-  videoObjects.forEach((v) => {
-    const path = v.high || v.original || v.low;
-    if (!path) return;
+  const rows = [];
+  if (info.title) rows.push(`<h2 class="property-title">${escapeHtml(info.title)}</h2>`);
 
-    const wrapper = document.createElement("div");
-    wrapper.className = "video-card";
+  const locationParts = [info.address, info.locality, info.city].filter(Boolean);
+  if (locationParts.length) rows.push(`<div class="property-location">&#128205; ${escapeHtml(locationParts.join(", "))}</div>`);
 
-    const video = document.createElement("video");
-    video.controls = true;
-    video.preload = "metadata";
-    video.src = resolveVideoUrl(path, domain);
-    if (v.thumbnail) {
-      video.poster = resolveVideoUrl(v.thumbnail, domain);
-    }
-    wrapper.appendChild(video);
+  const specs = [];
+  if (info.price != null) specs.push(`&#8377;${escapeHtml(String(info.price))}${info.deposit != null ? "" : "/mo"}`);
+  if (info.deposit != null) specs.push(`Deposit &#8377;${escapeHtml(String(info.deposit))}`);
+  if (info.bhk != null) specs.push(`${escapeHtml(String(info.bhk))} BHK`);
+  if (info.bathrooms != null) specs.push(`${escapeHtml(String(info.bathrooms))} Bath`);
+  if (info.area != null) specs.push(`${escapeHtml(String(info.area))} sqft`);
+  if (info.furnishing) specs.push(escapeHtml(String(info.furnishing)));
+  if (info.propertyType) specs.push(escapeHtml(String(info.propertyType)));
+  if (specs.length) rows.push(`<div class="property-specs">${specs.map((s) => `<span>${s}</span>`).join("")}</div>`);
 
-    section.appendChild(wrapper);
-  });
-}
-
-function updateMapLink(coords) {
-  const mapLink = document.getElementById("mapLink");
-  if (coords) {
-    mapLink.href = `https://www.google.com/maps?q=${coords.lat},${coords.lng}`;
-    mapLink.hidden = false;
-  } else {
-    mapLink.hidden = true;
-  }
-}
-
-let baseUrl = "";
-let images = [];
-let rotations = []; // rotation (deg) per image index, shared between grid tile and lightbox
-let tileImgs = []; // <img> elements in the grid, indexed to match `images`
-let currentIndex = 0;
-
-// Strip the filename off a full sample URL, keeping everything up to and
-// including the last "/" — that's the folder every imagesMap filename lives in.
-function baseUrlFromSampleUrl(sampleUrl) {
-  return sampleUrl.slice(0, sampleUrl.lastIndexOf("/") + 1);
-}
-
-function buildImageUrl(filename) {
-  return `${baseUrl}${filename}`;
-}
-
-function render() {
-  const grid = document.getElementById("grid");
-  grid.innerHTML = "";
-  tileImgs = [];
-
-  images.forEach((item, index) => {
-    const card = document.createElement("div");
-    card.className = "card";
-
-    const img = document.createElement("img");
-    img.src = buildImageUrl(item.imagesMap.medium);
-    img.loading = "lazy";
-    img.alt = item.title || `Image ${index + 1}`;
-    img.style.transform = `rotate(${rotations[index]}deg)`;
-    img.addEventListener("click", () => openLightbox(index));
-    card.appendChild(img);
-    tileImgs.push(img);
-
-    const rotateBtn = document.createElement("button");
-    rotateBtn.className = "tile-rotate-btn";
-    rotateBtn.innerHTML = "&#8635;";
-    rotateBtn.setAttribute("aria-label", "Rotate image");
-    rotateBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      setRotation(index, 90);
-    });
-    card.appendChild(rotateBtn);
-
-    if (item.displayPic) {
-      const badge = document.createElement("span");
-      badge.className = "badge";
-      badge.textContent = "Display Pic";
-      card.appendChild(badge);
-    }
-
-    grid.appendChild(card);
-  });
-
-  document.getElementById("count").textContent = `${images.length} image${images.length === 1 ? "" : "s"}`;
-}
-
-function setRotation(index, deg) {
-  rotations[index] = (rotations[index] + deg + 360) % 360;
-  if (tileImgs[index]) {
-    tileImgs[index].style.transform = `rotate(${rotations[index]}deg)`;
-  }
-  if (document.getElementById("lightbox").classList.contains("open") && currentIndex === index) {
-    document.getElementById("lightbox-img").style.transform = `rotate(${rotations[index]}deg)`;
-  }
-}
-
-function openLightbox(index) {
-  currentIndex = index;
-  document.getElementById("lightbox").classList.add("open");
-  updateLightboxImage();
-}
-
-function closeLightbox() {
-  document.getElementById("lightbox").classList.remove("open");
-}
-
-function showNext(delta) {
-  currentIndex = (currentIndex + delta + images.length) % images.length;
-  updateLightboxImage();
-}
-
-function updateLightboxImage() {
-  const item = images[currentIndex];
-  const size = document.getElementById("sizeSelect").value;
-  const lightboxImg = document.getElementById("lightbox-img");
-  lightboxImg.src = buildImageUrl(item.imagesMap[size]);
-  lightboxImg.style.transform = `rotate(${rotations[currentIndex]}deg)`;
-  document.getElementById("lightbox-counter").textContent = `${currentIndex + 1} / ${images.length}`;
-}
-
-// sampleUrl: one full image URL — its folder becomes the base for every imagesMap filename.
-// data: the array of image objects.
-function setImageData(sampleUrl, data) {
-  baseUrl = baseUrlFromSampleUrl(sampleUrl);
-  images = data || [];
-  rotations = images.map(() => 0);
-  render();
-}
-
-// Returns an error message string on failure, or null on success.
-function loadFromParsedJson(parsed, sampleUrlInput) {
-  const photos = findPhotosArray(parsed);
-  if (!photos) {
-    return "Couldn't find a photos array in that JSON (looked for objects with an imagesMap field).";
+  if (info.contactName || info.contactPhone) {
+    const contactParts = [info.contactName, info.contactPhone].filter(Boolean).map(escapeHtml);
+    rows.push(`<div class="property-contact">&#128222; ${contactParts.join(" &middot; ")}</div>`);
   }
 
-  const assetDomain = findAssetDomain(parsed) || KNOWN_ASSET_DOMAIN;
-
-  // Only honor the override field if the user actually typed into it
-  // themselves — not if it's still holding the auto-detected URL we wrote
-  // there for a *previous* (possibly different) property.
-  const manualOverride = sampleUrlInput.value.trim();
-  let sampleUrl = manualOverride && manualOverride !== sampleUrlInput.dataset.autoDetected
-    ? manualOverride
-    : findSampleImageUrl(parsed);
-
-  if (!sampleUrl) {
-    // No literal /images/ URL anywhere — reconstruct one from a photo's own
-    // filename (hash is its first underscore-segment) plus the asset domain.
-    const firstFilenames = photos[0]?.imagesMap || {};
-    const firstFilename = firstFilenames.original || firstFilenames.large || firstFilenames.medium || firstFilenames.thumbnail;
-    const hash = firstFilename && firstFilename.split("_")[0];
-    if (hash) sampleUrl = `https://${assetDomain}/images/${hash}/${firstFilename}`;
-  }
-  if (!sampleUrl) {
-    return "Couldn't find or derive a base image URL from that JSON — paste one in the URL field.";
-  }
-
-  setImageData(sampleUrl, photos);
-  sampleUrlInput.value = sampleUrl;
-  sampleUrlInput.dataset.autoDetected = sampleUrl;
-  updateMapLink(findLatLong(parsed));
-  renderVideos(findVideoObjects(parsed), assetDomain);
-  document.getElementById("inputPanel").removeAttribute("open");
-  return null;
+  panel.innerHTML = rows.join("");
+  panel.hidden = rows.length === 0;
 }
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+let currentPropertyId = null;
+let currentAssetDomain = KNOWN_ASSET_DOMAIN;
+let currentInfo = {};
+let currentPhotos = [];
+let currentVideoObjects = null;
+let currentSampleUrl = "";
+let currentCoords = null;
 
 // NoBroker property ids are 32 lowercase hex chars, appearing as a path
 // segment in any property URL (e.g. .../detail/<id>/detail or .../<id>).
@@ -315,74 +244,173 @@ function extractPropertyId(url) {
   return match ? match[0] : null;
 }
 
+// Search the pasted JSON itself (not just a URL) for a 32-hex-char id, e.g. a
+// "propertyId" field — used as a fallback when no URL is available.
+function findPropertyIdInJson(node, seen = new Set()) {
+  if (typeof node === "string") return PROPERTY_ID_RE.test(node) ? node.match(PROPERTY_ID_RE)[0] : null;
+  if (!node || typeof node !== "object" || seen.has(node)) return null;
+  seen.add(node);
+
+  const values = Array.isArray(node) ? node : Object.values(node);
+  for (const value of values) {
+    const found = findPropertyIdInJson(value, seen);
+    if (found) return found;
+  }
+  return null;
+}
+
+// Returns an error message string on failure, or null on success.
+function loadFromParsedJson(parsed) {
+  const photos = findPhotosArray(parsed);
+  if (!photos) {
+    return "Couldn't find any photos in that property's data.";
+  }
+
+  const assetDomain = findAssetDomain(parsed) || KNOWN_ASSET_DOMAIN;
+
+  let sampleUrl = findSampleImageUrl(parsed);
+  let hash = null;
+  if (!sampleUrl) {
+    // No literal /images/ URL anywhere — reconstruct one from a photo's own
+    // filename (hash is its first underscore-segment) plus the asset domain.
+    const firstFilenames = photos[0]?.imagesMap || {};
+    const firstFilename = firstFilenames.original || firstFilenames.large || firstFilenames.medium || firstFilenames.thumbnail;
+    hash = firstFilename && firstFilename.split("_")[0];
+    if (hash) sampleUrl = `https://${assetDomain}/images/${hash}/${firstFilename}`;
+  }
+  if (!sampleUrl) {
+    return "Couldn't derive an image URL from that property's data.";
+  }
+
+  const coords = findLatLong(parsed);
+  const videoObjects = findVideoObjects(parsed);
+  const info = findPropertyInfo(parsed);
+
+  Viewer.setImageData(sampleUrl, photos);
+  Viewer.updateMapLink(coords);
+  Viewer.renderVideos(videoObjects, assetDomain);
+  renderPropertyInfo(info);
+
+  currentPropertyId = findPropertyIdInJson(parsed) || (hash ? hash : null);
+  currentAssetDomain = assetDomain;
+  currentInfo = info;
+  currentPhotos = photos;
+  currentVideoObjects = videoObjects;
+  currentSampleUrl = sampleUrl;
+  currentCoords = coords;
+
+  return null;
+}
+
+function saveCurrentProperty() {
+  if (!currentPhotos.length) return "Nothing loaded to save yet.";
+
+  const id = currentPropertyId || currentSampleUrl;
+  Bookmarks.upsertBookmark({
+    id,
+    title: currentInfo.title || "",
+    locality: currentInfo.locality || "",
+    city: currentInfo.city || "",
+    price: currentInfo.price ?? null,
+    sampleUrl: currentSampleUrl,
+    assetDomain: currentAssetDomain,
+    photos: currentPhotos,
+    videoObjects: currentVideoObjects,
+    lat: currentCoords?.lat ?? null,
+    lng: currentCoords?.lng ?? null,
+    info: currentInfo,
+    savedAt: Date.now(),
+  });
+  return null;
+}
+
+function showLanding() {
+  document.getElementById("landing").hidden = false;
+  document.getElementById("viewerContent").hidden = true;
+}
+
+function showViewer() {
+  document.getElementById("landing").hidden = true;
+  document.getElementById("viewerContent").hidden = false;
+}
+
 document.addEventListener("DOMContentLoaded", () => {
-  const sampleUrlInput = document.getElementById("sampleUrlInput");
-  const jsonInput = document.getElementById("jsonInput");
+  Viewer.initLightboxControls();
+
   const loadError = document.getElementById("loadError");
   const propertyUrlInput = document.getElementById("propertyUrlInput");
   const fetchUrlBtn = document.getElementById("fetchUrlBtn");
+  const newSearchError = document.getElementById("newSearchError");
+  const newSearchInput = document.getElementById("newSearchInput");
+  const newSearchBtn = document.getElementById("newSearchBtn");
+  const saveBtn = document.getElementById("saveBtn");
+  const saveStatus = document.getElementById("saveStatus");
+  const brandHome = document.getElementById("brandHome");
 
-  jsonInput.value = JSON.stringify(window.IMAGE_DATA, null, 2);
-  setImageData(DEFAULT_SAMPLE_URL, window.IMAGE_DATA);
-  updateMapLink(findLatLong(window.IMAGE_DATA));
-  renderVideos(findVideoObjects(window.IMAGE_DATA), KNOWN_ASSET_DOMAIN);
-
-  document.getElementById("loadBtn").addEventListener("click", () => {
-    loadError.textContent = "";
-    let parsed;
-    try {
-      parsed = JSON.parse(jsonInput.value);
-    } catch (err) {
-      loadError.textContent = `Invalid JSON: ${err.message}`;
-      return;
-    }
-    const error = loadFromParsedJson(parsed, sampleUrlInput);
-    if (error) loadError.textContent = error;
-  });
-
-  fetchUrlBtn.addEventListener("click", async () => {
-    loadError.textContent = "";
-    const propertyId = extractPropertyId(propertyUrlInput.value.trim());
+  async function search(input, errorEl, button) {
+    errorEl.textContent = "";
+    const propertyId = extractPropertyId(input.value.trim());
     if (!propertyId) {
-      loadError.textContent = "Couldn't find a property id (32 hex chars) in that URL.";
+      errorEl.textContent = "Paste a valid NoBroker property link.";
       return;
     }
 
-    fetchUrlBtn.disabled = true;
-    fetchUrlBtn.textContent = "Fetching…";
+    button.disabled = true;
+    const originalLabel = button.textContent;
+    button.textContent = "Searching…";
     try {
       const res = await fetch(`/api/property/${propertyId}`);
       const parsed = await res.json();
       if (!res.ok) {
-        loadError.textContent = `Server returned ${res.status}: ${parsed?.error || res.statusText}`;
+        errorEl.textContent = `Server returned ${res.status}: ${parsed?.error || res.statusText}`;
         return;
       }
-      jsonInput.value = JSON.stringify(parsed, null, 2);
-      const error = loadFromParsedJson(parsed, sampleUrlInput);
-      if (error) loadError.textContent = error;
+      const error = loadFromParsedJson(parsed);
+      if (error) {
+        errorEl.textContent = error;
+        return;
+      }
+      saveStatus.textContent = "";
+      saveBtn.classList.remove("saved");
+      propertyUrlInput.value = input.value;
+      newSearchInput.value = input.value;
+      showViewer();
     } catch (err) {
-      loadError.textContent = `Fetch failed: ${err.message}`;
+      errorEl.textContent = `Search failed: ${err.message}`;
     } finally {
-      fetchUrlBtn.disabled = false;
-      fetchUrlBtn.textContent = "Fetch from URL";
+      button.disabled = false;
+      button.textContent = originalLabel;
     }
+  }
+
+  fetchUrlBtn.addEventListener("click", () => search(propertyUrlInput, loadError, fetchUrlBtn));
+  propertyUrlInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") search(propertyUrlInput, loadError, fetchUrlBtn);
   });
 
-  document.getElementById("lightbox-close").addEventListener("click", closeLightbox);
-  document.getElementById("lightbox-prev").addEventListener("click", () => showNext(-1));
-  document.getElementById("lightbox-next").addEventListener("click", () => showNext(1));
-  document.getElementById("sizeSelect").addEventListener("change", updateLightboxImage);
-  document.getElementById("rotate-left").addEventListener("click", () => setRotation(currentIndex, -90));
-  document.getElementById("rotate-right").addEventListener("click", () => setRotation(currentIndex, 90));
-
-  document.getElementById("lightbox").addEventListener("click", (e) => {
-    if (e.target.id === "lightbox") closeLightbox();
+  newSearchBtn.addEventListener("click", () => search(newSearchInput, newSearchError, newSearchBtn));
+  newSearchInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") search(newSearchInput, newSearchError, newSearchBtn);
   });
 
-  document.addEventListener("keydown", (e) => {
-    if (!document.getElementById("lightbox").classList.contains("open")) return;
-    if (e.key === "Escape") closeLightbox();
-    if (e.key === "ArrowLeft") showNext(-1);
-    if (e.key === "ArrowRight") showNext(1);
+  saveBtn.addEventListener("click", () => {
+    saveStatus.textContent = "";
+    const error = saveCurrentProperty();
+    saveBtn.classList.toggle("saved", !error);
+    saveStatus.textContent = error || "Saved ✓";
+  });
+
+  brandHome.addEventListener("click", () => {
+    propertyUrlInput.value = "";
+    newSearchInput.value = "";
+    loadError.textContent = "";
+    newSearchError.textContent = "";
+    saveBtn.classList.remove("saved");
+    document.getElementById("count").textContent = "";
+    document.getElementById("mapLink").hidden = true;
+    showLanding();
+  });
+  brandHome.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") brandHome.click();
   });
 });
