@@ -5,6 +5,7 @@ to NoBroker's public property-detail API server-side, so the browser page
 *.nobroker.in-only CORS policy."""
 
 import http.server
+import os
 import re
 import sys
 import urllib.error
@@ -74,7 +75,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8123
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get("PORT", 8123))
     server = http.server.ThreadingHTTPServer(("0.0.0.0", port), Handler)
     print(f"Serving on port {port}")
     server.serve_forever()

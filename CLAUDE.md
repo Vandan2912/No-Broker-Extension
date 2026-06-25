@@ -11,10 +11,18 @@ HTTP server.
 ## Running it
 
 ```
-python3 server.py [port]   # defaults to 8123
+python3 server.py [port]   # defaults to $PORT env var, else 8123
 ```
 
 Then open `http://localhost:<port>/`. There is no build/lint/test tooling in this repo.
+
+## Deployment
+
+Deployed on Render (free web service tier) via `render.yaml` — Render builds nothing
+(`buildCommand: "true"`, no dependencies to install) and runs `python3 server.py`, which
+binds to the `$PORT` env var Render injects. Push to `main` on GitHub to redeploy. The
+custom domain (`flathunt.vandanpatel.in`) is configured in the Render dashboard with a
+CNAME record pointing at the Render-provided hostname.
 
 ## Architecture
 
