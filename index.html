@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Image Viewer</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span class="brand-icon">🖼️</span>
+      <h1>Image Viewer</h1>
+    </div>
+    <div class="header-right">
+      <a id="mapLink" href="#" target="_blank" rel="noopener" hidden>&#128205; View on Map</a>
+      <span id="count"></span>
+    </div>
+  </header>
+
+  <details id="inputPanel">
+    <summary>Load images <span class="summary-hint">— paste a NoBroker property URL, or paste the JSON directly</span></summary>
+    <div class="panel-body">
+      <label>
+        NoBroker property URL
+        <input id="propertyUrlInput" type="text" placeholder="https://www.nobroker.in/property/.../detail" />
+      </label>
+      <div class="panel-actions">
+        <button id="fetchUrlBtn">Fetch from URL</button>
+      </div>
+      <label>
+        ...or paste JSON directly (either a bare photos array, or a full API response containing one)
+        <textarea id="jsonInput" rows="6" placeholder="Paste the photos array or the full API response here"></textarea>
+      </label>
+      <label>
+        Sample image URL — optional, only needed if auto-detection fails
+        <input id="sampleUrlInput" type="text" placeholder="Leave blank to auto-detect from the JSON above" />
+      </label>
+      <div class="panel-actions">
+        <button id="loadBtn">Load Images</button>
+        <span id="loadError"></span>
+      </div>
+    </div>
+  </details>
+
+  <div id="videoSection" hidden></div>
+
+  <div id="grid"></div>
+
+  <div id="lightbox">
+    <div class="lightbox-top">
+      <span id="lightbox-counter"></span>
+      <select id="sizeSelect">
+        <option value="thumbnail">Thumbnail</option>
+        <option value="medium">Medium</option>
+        <option value="large" selected>Large</option>
+        <option value="original">Original</option>
+      </select>
+      <button id="rotate-left" class="icon-btn" aria-label="Rotate left">&#8634;</button>
+      <button id="rotate-right" class="icon-btn" aria-label="Rotate right">&#8635;</button>
+    </div>
+    <button id="lightbox-close" aria-label="Close">&times;</button>
+    <button id="lightbox-prev" class="nav-btn" aria-label="Previous">&#8249;</button>
+    <img id="lightbox-img" src="" alt="" />
+    <button id="lightbox-next" class="nav-btn" aria-label="Next">&#8250;</button>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
