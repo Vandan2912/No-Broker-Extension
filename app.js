@@ -360,9 +360,18 @@ document.addEventListener("DOMContentLoaded", () => {
     button.textContent = "Searching…";
     try {
       const res = await fetch(`/api/property/${propertyId}`);
-      const parsed = await res.json();
-      if (!res.ok) {
-        errorEl.textContent = `Server returned ${res.status}: ${parsed?.error || res.statusText}`;
+      const text = await res.text();
+      let parsed = null;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        // Upstream sent HTML (e.g. NoBroker's nginx block page) instead of JSON.
+      }
+      if (!res.ok || !parsed) {
+        errorEl.textContent =
+          res.status === 403
+            ? "NoBroker blocked the request from this server (403). Try again later or run the app locally."
+            : `Server returned ${res.status}: ${parsed?.error || res.statusText || "non-JSON response"}`;
         return;
       }
       const error = loadFromParsedJson(parsed);
